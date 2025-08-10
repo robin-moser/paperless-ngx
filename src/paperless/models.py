@@ -333,6 +333,16 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=128,
     )
 
+    llm_prompt_template = models.TextField(
+        verbose_name=_("Custom AI prompt template"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Custom prompt template for AI classification. Available placeholders: "
+            "{filename}, {content}, {available_tags}, {available_correspondents}"
+        ),
+    )
+
     class Meta:
         verbose_name = _("paperless application settings")
 

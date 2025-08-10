@@ -323,6 +323,14 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
     category: ConfigCategory.AI,
   },
+  {
+    key: 'llm_prompt_template',
+    title: $localize`LLM Prompt Template`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_LLM_PROMPT_TEMPLATE',
+    category: ConfigCategory.AI,
+    multiline: true,
+  },
 ]
 
 export interface PaperlessConfig extends ObjectWithId {
@@ -359,4 +367,5 @@ export interface PaperlessConfig extends ObjectWithId {
   llm_model: string
   llm_api_key: string
   llm_endpoint: string
+  llm_prompt_template: string
 }
