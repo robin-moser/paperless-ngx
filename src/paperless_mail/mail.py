@@ -37,6 +37,7 @@ from documents.data_models import DocumentMetadataOverrides
 from documents.data_models import DocumentSource
 from documents.loggers import LoggingMixin
 from documents.models import Correspondent
+from documents.models import CustomField
 from documents.models import PaperlessTask
 from documents.parsers import is_mime_type_supported
 from documents.tasks import consume_file
@@ -537,6 +538,62 @@ class MailAccountHandler(LoggingMixin):
                 "Unknown correspondent selector",
             )  # pragma: no cover
 
+    def _get_email_custom_fields(self, message: MailMessage) -> dict:
+        """
+        Creates or gets email custom fields and returns their field IDs with values.
+        """
+        custom_fields = {}
+
+        # Create or get email custom fields
+        email_subject_field, _ = CustomField.objects.get_or_create(
+            name="Email Subject",
+            defaults={
+                "data_type": CustomField.FieldDataType.STRING,
+            },
+        )
+
+        email_sender_field, _ = CustomField.objects.get_or_create(
+            name="Email Sender",
+            defaults={
+                "data_type": CustomField.FieldDataType.STRING,
+            },
+        )
+
+        email_recipient_field, _ = CustomField.objects.get_or_create(
+            name="Email Recipient",
+            defaults={
+                "data_type": CustomField.FieldDataType.STRING,
+            },
+        )
+
+        email_date_field, _ = CustomField.objects.get_or_create(
+            name="Email Received Date",
+            defaults={
+                "data_type": CustomField.FieldDataType.DATE,
+            },
+        )
+
+        # Format sender information
+        if message.from_values and message.from_values.name:
+            sender = f"{message.from_values.name} <{message.from_}>"
+        else:
+            sender = message.from_
+
+        # Format recipient information
+        recipients = ", ".join(addr.full for addr in message.to_values)
+
+        # Set custom field values (truncate to 128 chars for text fields)
+        if message.subject:
+            custom_fields[email_subject_field.id] = message.subject[:128]
+        if sender:
+            custom_fields[email_sender_field.id] = sender[:128]
+        if recipients:
+            custom_fields[email_recipient_field.id] = recipients[:128]
+        if message.date:
+            custom_fields[email_date_field.id] = message.date.date()
+
+        return custom_fields
+
     def handle_mail_account(self, account: MailAccount):
         """
         Main entry method to handle a specific mail account.
@@ -891,6 +948,10 @@ class MailAccountHandler(LoggingMixin):
                         if (rule.assign_owner_from_rule and rule.owner)
                         else None
                     ),
+                    created=make_aware(message.date)
+                    if is_naive(message.date)
+                    else message.date,
+                    custom_fields=self._get_email_custom_fields(message),
                 )
 
                 consume_task = consume_file.s(
@@ -993,6 +1054,10 @@ class MailAccountHandler(LoggingMixin):
             document_type_id=doc_type.id if doc_type else None,
             tag_ids=tag_ids,
             owner_id=rule.owner.id if rule.owner else None,
+            created=make_aware(message.date)
+            if is_naive(message.date)
+            else message.date,
+            custom_fields=self._get_email_custom_fields(message),
         )
 
         consume_task = consume_file.s(
