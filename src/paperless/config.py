@@ -196,6 +196,7 @@ class AIConfig(BaseConfig):
     llm_api_key: str = dataclasses.field(init=False)
     llm_endpoint: str = dataclasses.field(init=False)
     llm_allow_internal_endpoints: bool = dataclasses.field(init=False)
+    llm_prompt_template: str = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -212,6 +213,7 @@ class AIConfig(BaseConfig):
         self.llm_api_key = app_config.llm_api_key or settings.LLM_API_KEY
         self.llm_endpoint = app_config.llm_endpoint or settings.LLM_ENDPOINT
         self.llm_allow_internal_endpoints = settings.LLM_ALLOW_INTERNAL_ENDPOINTS
+        self.llm_prompt_template = app_config.llm_prompt_template or ""
 
     @property
     def llm_index_enabled(self) -> bool:
