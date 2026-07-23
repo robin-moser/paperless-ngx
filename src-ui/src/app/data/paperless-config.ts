@@ -45,6 +45,7 @@ export enum ConfigOptionType {
   JSON = 'json',
   File = 'file',
   Password = 'password',
+  Textarea = 'textarea',
 }
 
 export const ConfigCategory = {
@@ -368,6 +369,14 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
     note: $localize`Timeout in seconds for LLM requests.`,
   },
+  {
+    key: 'llm_prompt_template',
+    title: $localize`LLM Prompt Template`,
+    type: ConfigOptionType.Textarea,
+    config_key: 'PAPERLESS_AI_LLM_PROMPT_TEMPLATE',
+    category: ConfigCategory.AI,
+    note: $localize`Available placeholders: {filename}, {content}, {available_tags}, {available_correspondents}. Double literal braces. Leave empty to use the built-in prompt.`,
+  },
 ]
 
 export interface PaperlessConfig extends ObjectWithId {
@@ -410,4 +419,5 @@ export interface PaperlessConfig extends ObjectWithId {
   llm_endpoint: string
   llm_output_language: string
   llm_request_timeout: number
+  llm_prompt_template: string
 }
