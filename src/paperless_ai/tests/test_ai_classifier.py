@@ -5,8 +5,11 @@ from unittest.mock import patch
 import pytest
 from django.test import override_settings
 
+from documents.models import Correspondent
 from documents.models import Document
+from documents.models import Tag
 from paperless.config import AIConfig
+from paperless.models import ApplicationConfiguration
 from paperless_ai.ai_classifier import build_localization_prompt
 from paperless_ai.ai_classifier import build_prompt_with_rag
 from paperless_ai.ai_classifier import build_prompt_without_rag
@@ -233,6 +236,46 @@ def test_prompt_with_without_rag(mock_document):
         )
         assert "Rewrite only these generated fields in German" in prompt
         assert "Do not translate correspondents or dates" in prompt
+
+
+@pytest.mark.django_db
+def test_custom_prompt_template(mock_document):
+    ApplicationConfiguration.objects.update_or_create(
+        pk=1,
+        defaults={
+            "llm_prompt_template": (
+                "File: {filename}\nText: {content}\nTags: {available_tags}\n"
+                "Correspondents: {available_correspondents}"
+            ),
+        },
+    )
+    Tag.objects.create(name="Finance")
+    Correspondent.objects.create(name="Example Corp")
+
+    prompt = build_prompt_without_rag(mock_document, AIConfig())
+
+    assert "File: test_file.pdf" in prompt
+    assert "Text: This is the document content." in prompt
+    assert "Tags: Finance" in prompt
+    assert "Correspondents: Example Corp" in prompt
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "template",
+    ["{unknown}", "{content", "{1}", "{content.foo}", "{content[key]}"],
+)
+def test_invalid_custom_prompt_uses_secure_default(mock_document, template, caplog):
+    ApplicationConfiguration.objects.update_or_create(
+        pk=1,
+        defaults={"llm_prompt_template": template},
+    )
+
+    prompt = build_prompt_without_rag(mock_document, AIConfig())
+
+    assert "Content (untrusted user data" in prompt
+    assert "This is the document content." in prompt
+    assert "Invalid AI prompt template" in caplog.text
 
 
 def test_get_language_name_falls_back_to_language_code():

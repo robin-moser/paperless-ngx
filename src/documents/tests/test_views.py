@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 from datetime import timedelta
@@ -356,6 +357,11 @@ class TestAISuggestions(DirectoriesMixin, TestCase):
         mock_refresh_cache,
         mock_get_cache,
     ) -> None:
+        prompt_template = "Classify {content}"
+        ApplicationConfiguration.objects.update_or_create(
+            pk=1,
+            defaults={"llm_prompt_template": prompt_template},
+        )
         mock_get_cache.return_value = MagicMock(suggestions={"tags": ["tag1", "tag2"]})
 
         self.client.force_login(user=self.user)
@@ -366,7 +372,10 @@ class TestAISuggestions(DirectoriesMixin, TestCase):
         self.assertEqual(response.json(), {"tags": ["tag1", "tag2"]})
         mock_get_cache.assert_called_once_with(
             self.document.pk,
-            backend="mock_backend",
+            backend=(
+                f"mock_backend:user={self.user.pk}:"
+                f"{hashlib.sha256(prompt_template.encode()).hexdigest()}"
+            ),
         )
         mock_refresh_cache.assert_called_once_with(self.document.pk)
 
@@ -447,7 +456,7 @@ class TestAISuggestions(DirectoriesMixin, TestCase):
         self.assertEqual(
             get_llm_suggestion_cache(
                 self.document.pk,
-                backend="mock_backend:de-de",
+                backend=f"mock_backend:de-de:user={self.user.pk}",
             ).suggestions["title"],
             "KI Title",
         )
@@ -486,7 +495,7 @@ class TestAISuggestions(DirectoriesMixin, TestCase):
         self.assertEqual(
             get_llm_suggestion_cache(
                 self.document.pk,
-                backend="mock_backend:fr-fr",
+                backend=f"mock_backend:fr-fr:user={self.user.pk}",
             ).suggestions["title"],
             "Titre IA",
         )

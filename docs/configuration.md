@@ -2081,6 +2081,15 @@ local or slow inference servers that need more time to generate responses.
 
     Defaults to 120.
 
+#### [`PAPERLESS_AI_LLM_PROMPT_TEMPLATE=<str>`](#PAPERLESS_AI_LLM_PROMPT_TEMPLATE) {#PAPERLESS_AI_LLM_PROMPT_TEMPLATE}
+
+: A custom prompt template for AI suggestions. Available placeholders are `{filename}`, `{content}`,
+`{available_tags}`, and `{available_correspondents}`. Document content is untrusted, so custom
+templates should explicitly instruct the model not to follow instructions found in the document.
+Use doubled braces (`{{` and `}}`) for literal braces, such as in JSON examples.
+
+    Defaults to None, which uses the built-in prompt.
+
 #### [`PAPERLESS_AI_LLM_BACKEND=<str>`](#PAPERLESS_AI_LLM_BACKEND) {#PAPERLESS_AI_LLM_BACKEND}
 
 : The AI backend to use. This can be either "openai-like" or "ollama". If set to "ollama", the AI

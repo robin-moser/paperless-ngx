@@ -1,3 +1,4 @@
+import hashlib
 import itertools
 import logging
 import os
@@ -1497,6 +1498,12 @@ class DocumentViewSet(
             if output_language
             else ai_config.llm_backend
         )
+        llm_cache_backend = f"{llm_cache_backend}:user={request.user.pk}"
+        if ai_config.llm_prompt_template:
+            prompt_hash = hashlib.sha256(
+                ai_config.llm_prompt_template.encode(),
+            ).hexdigest()
+            llm_cache_backend = f"{llm_cache_backend}:{prompt_hash}"
 
         cached_llm_suggestions = get_llm_suggestion_cache(
             doc.pk,
