@@ -4,6 +4,7 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.rc[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-custom.[0-9]+'
     branches:
       - dev
       - beta
@@ -129,7 +130,7 @@ jobs:
             type=ref,event=branch
             type=raw,value=${{ steps.ref.outputs.name }},enable=${{ github.event_name == 'pull_request' }}
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-custom.') }}
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -212,7 +213,7 @@ jobs:
             type=ref,event=branch
             type=raw,value=${{ needs.build-arch.outputs.ref-name }},enable=${{ github.event_name == 'pull_request' }}
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-custom.') }}
       - name: Create manifest list and push
         working-directory: /tmp/digests
         env:
