@@ -3,6 +3,7 @@ on:
   push:
     branches-ignore:
       - 'translations**'
+      - 'patch/**'
   pull_request:
     branches-ignore:
       - 'translations**'
