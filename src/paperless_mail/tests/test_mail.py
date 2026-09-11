@@ -599,9 +599,15 @@ class TestMail(
         )
         rule.save()
 
-        result = self.mail_account_handler._handle_message(message, rule)
+        with mock.patch.object(
+            self.mail_account_handler,
+            "_get_email_custom_fields",
+            wraps=self.mail_account_handler._get_email_custom_fields,
+        ) as get_email_custom_fields:
+            result = self.mail_account_handler._handle_message(message, rule)
 
         self.assertEqual(result, 2)
+        get_email_custom_fields.assert_called_once()
 
         self.mailMocker._queue_consumption_tasks_mock.assert_called()
 
@@ -668,18 +674,23 @@ class TestMail(
         )
         self.assertEqual(overrides.created, timezone.make_aware(message.date))
 
-    def test_email_custom_field_type_must_match(self) -> None:
-        CustomField.objects.create(
+    def test_email_custom_field_type_mismatch_does_not_block_consumption(self) -> None:
+        conflicting_field = CustomField.objects.create(
             name="Email Received Date",
             data_type=CustomField.FieldDataType.STRING,
         )
-        message = self.mailMocker.messageBuilder.create_message()
+        message = self.mailMocker.messageBuilder.create_message(attachments=1)
+        rule = MailRule.objects.create(account=MailAccount.objects.create())
 
-        with self.assertRaisesMessage(
-            ValueError,
-            "Custom field 'Email Received Date' must have type date",
-        ):
-            self.mail_account_handler._get_email_custom_fields(message)
+        result = self.mail_account_handler._handle_message(message, rule)
+
+        self.assertEqual(result, 1)
+        task = self.mailMocker._queue_consumption_tasks_mock.call_args.kwargs[
+            "consume_tasks"
+        ][0]
+        custom_fields = task.kwargs["overrides"].custom_fields
+        self.assertNotIn(conflicting_field.id, custom_fields)
+        self.assertEqual(len(custom_fields), 3)
 
     def test_bogus_mailbox_uids_and_uid_criteria(self) -> None:
         mailbox = self.mailMocker.bogus_mailbox

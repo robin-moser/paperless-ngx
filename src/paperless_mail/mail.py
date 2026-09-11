@@ -687,7 +687,11 @@ class MailAccountHandler(LoggingMixin):
                 defaults={"data_type": data_type},
             )
             if field.data_type != data_type:
-                raise ValueError(f"Custom field {name!r} must have type {data_type}")
+                self.log.warning(
+                    f"Custom field {name!r} has type {field.data_type}; "
+                    f"skipping email metadata that requires type {data_type}",
+                )
+                continue
             fields[name] = field
 
         sender = (
@@ -708,7 +712,7 @@ class MailAccountHandler(LoggingMixin):
                     message.date.date() if message.date else None,
                 ),
             )
-            if value is not None
+            if name in fields and value is not None
         }
 
     def handle_mail_account(self, account: MailAccount):
@@ -949,16 +953,19 @@ class MailAccountHandler(LoggingMixin):
 
         tag_ids: list[int] = [tag.id for tag in rule.assign_tags.all()]
         doc_type = rule.assign_document_type
+        email_custom_fields = None
 
         if (
             rule.consumption_scope == MailRule.ConsumptionScope.EML_ONLY
             or rule.consumption_scope == MailRule.ConsumptionScope.EVERYTHING
         ):
+            email_custom_fields = self._get_email_custom_fields(message)
             processed_elements += self._process_eml(
                 message,
                 rule,
                 tag_ids,
                 doc_type,
+                email_custom_fields,
             )
 
         if (
@@ -970,6 +977,7 @@ class MailAccountHandler(LoggingMixin):
                 rule,
                 tag_ids,
                 doc_type,
+                email_custom_fields,
             )
 
         return processed_elements
@@ -1036,6 +1044,7 @@ class MailAccountHandler(LoggingMixin):
         rule: MailRule,
         tag_ids,
         doc_type,
+        email_custom_fields: dict[int, object] | None,
     ):
         processed_attachments = 0
 
@@ -1086,6 +1095,8 @@ class MailAccountHandler(LoggingMixin):
             mime_type = magic.from_buffer(att.payload, mime=True)
 
             if is_mime_type_supported(mime_type):
+                if email_custom_fields is None:
+                    email_custom_fields = self._get_email_custom_fields(message)
                 self.log.info(
                     f"Rule {rule}: "
                     f"Consuming attachment {att.filename} from mail "
@@ -1133,7 +1144,7 @@ class MailAccountHandler(LoggingMixin):
                         if is_naive(message.date)
                         else message.date
                     ),
-                    custom_fields=self._get_email_custom_fields(message),
+                    custom_fields=email_custom_fields,
                 )
 
                 consume_task = consume_file.s(
@@ -1175,6 +1186,7 @@ class MailAccountHandler(LoggingMixin):
         rule: MailRule,
         tag_ids,
         doc_type,
+        email_custom_fields: dict[int, object],
     ):
         settings.SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
         _, temp_filename = tempfile.mkstemp(
@@ -1228,7 +1240,7 @@ class MailAccountHandler(LoggingMixin):
             created=(
                 make_aware(message.date) if is_naive(message.date) else message.date
             ),
-            custom_fields=self._get_email_custom_fields(message),
+            custom_fields=email_custom_fields,
         )
 
         consume_task = consume_file.s(
