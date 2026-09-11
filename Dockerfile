@@ -18,7 +18,7 @@ ARG PNGX_TAG_VERSION=
 # Add the tag to the environment file if its a tagged dev build
 RUN set -eux && \
 case "${PNGX_TAG_VERSION}" in \
-  dev|beta|fix*|feature*) \
+  dev|beta|fix*|feature*|*-custom.*) \
     sed -i -E "s/tag: '([a-z\.]+)'/tag: '${PNGX_TAG_VERSION}'/g" /src/src-ui/src/environments/environment.prod.ts \
     ;; \
 esac
