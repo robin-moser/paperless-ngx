@@ -27,6 +27,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from documents.models import Correspondent
+from documents.models import CustomField
 from documents.models import MatchingModel
 from documents.tests.factories import CorrespondentFactory
 from documents.tests.utils import DirectoriesMixin
@@ -585,8 +586,9 @@ class TestMail(
 
     def test_handle_message(self) -> None:
         message = self.mailMocker.messageBuilder.create_message(
-            subject="the message title",
-            from_="Myself",
+            subject="the message title" * 10,
+            from_="Myself <myself@example.com>",
+            to=["Recipient <recipient@example.com>"],
             attachments=2,
         )
 
@@ -611,6 +613,73 @@ class TestMail(
                 ],
             ],
         )
+
+        fields = {field.name: field for field in CustomField.objects.all()}
+        expected_custom_fields = {
+            fields["Email Subject"].id: message.subject[:128],
+            fields["Email Sender"].id: "Myself <myself@example.com>",
+            fields["Email Recipient"].id: "Recipient <recipient@example.com>",
+            fields["Email Received Date"].id: message.date.date(),
+        }
+        for task in self.mailMocker._queue_consumption_tasks_mock.call_args.kwargs[
+            "consume_tasks"
+        ]:
+            overrides = task.kwargs["overrides"]
+            self.assertEqual(overrides.custom_fields, expected_custom_fields)
+            self.assertEqual(overrides.created, timezone.make_aware(message.date))
+
+        self.assertEqual(
+            fields["Email Received Date"].data_type,
+            CustomField.FieldDataType.DATE,
+        )
+        self.assertTrue(
+            all(
+                fields[name].data_type == CustomField.FieldDataType.STRING
+                for name in ("Email Subject", "Email Sender", "Email Recipient")
+            ),
+        )
+
+    def test_process_eml_adds_email_metadata(self) -> None:
+        message = self.mailMocker.messageBuilder.create_message(
+            subject="the message title",
+            from_="Myself <myself@example.com>",
+            to=["recipient@example.com"],
+        )
+        rule = MailRule.objects.create(
+            account=MailAccount.objects.create(),
+            consumption_scope=MailRule.ConsumptionScope.EML_ONLY,
+        )
+
+        self.mail_account_handler._handle_message(message, rule)
+
+        task = self.mailMocker._queue_consumption_tasks_mock.call_args.kwargs[
+            "consume_tasks"
+        ][0]
+        overrides = task.kwargs["overrides"]
+        fields = {field.name: field for field in CustomField.objects.all()}
+        self.assertEqual(
+            overrides.custom_fields,
+            {
+                fields["Email Subject"].id: "the message title",
+                fields["Email Sender"].id: "Myself <myself@example.com>",
+                fields["Email Recipient"].id: "recipient@example.com",
+                fields["Email Received Date"].id: message.date.date(),
+            },
+        )
+        self.assertEqual(overrides.created, timezone.make_aware(message.date))
+
+    def test_email_custom_field_type_must_match(self) -> None:
+        CustomField.objects.create(
+            name="Email Received Date",
+            data_type=CustomField.FieldDataType.STRING,
+        )
+        message = self.mailMocker.messageBuilder.create_message()
+
+        with self.assertRaisesMessage(
+            ValueError,
+            "Custom field 'Email Received Date' must have type date",
+        ):
+            self.mail_account_handler._get_email_custom_fields(message)
 
     def test_bogus_mailbox_uids_and_uid_criteria(self) -> None:
         mailbox = self.mailMocker.bogus_mailbox
